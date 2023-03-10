@@ -51,6 +51,4 @@ RUN yes | pip3 install requests
 ADD http://date.jsontest.com /etc/builddate
 
 WORKDIR /software
-RUN git clone https://github.com/rlorigro/dbg_compare.git
-
-ENV PYTHONPATH="${PYTHONPATH}:/software/dbg_compare/scripts/"
+ADD scripts/ /software
