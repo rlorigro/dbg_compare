@@ -47,4 +47,8 @@ RUN yes | pip3 install pysam
 RUN yes | pip3 install google-auth
 RUN yes | pip3 install requests
 
+## Download dbg_compare
+WORKDIR /software
+RUN git clone https://github.com/rlorigro/dbg_compare.git
 
+ENV PYTHONPATH "${PYTHONPATH}:/software/dbg_compare/scripts/"

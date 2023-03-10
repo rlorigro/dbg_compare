@@ -1,5 +1,5 @@
 from pysam import AlignmentFile,AlignmentHeader
-from modules.Authenticator import GoogleToken
+from module.Authenticator import GoogleToken
 
 import subprocess
 import requests

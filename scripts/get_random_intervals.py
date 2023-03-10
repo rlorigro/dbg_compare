@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from pysam import AlignmentFile
-from modules.Authenticator import GoogleToken
+from module.Authenticator import GoogleToken
 
 import argparse
 import random
