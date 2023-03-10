@@ -5,7 +5,7 @@
 ######################################
 
 cmake_minimum_required(VERSION 3.10)
-project(test_dbg VERSION 0.0.0)
+project(dbg_compare VERSION 0.0.0)
 
 message(STATUS "CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "CMAKE_CXX_COMPILER_VERSION: ${CMAKE_CXX_COMPILER_VERSION}")
@@ -53,15 +53,15 @@ set(SOURCES
         src/a.cpp
         )
 
-project(test_dbg)
-add_library(test_dbg STATIC ${SOURCES})
+project(dbg_compare)
+add_library(dbg_compare STATIC ${SOURCES})
 
 # To make sure the library is named Name.so,
 # get rid of the "lib" prefix.
-set_target_properties(test_dbg PROPERTIES PREFIX "")
+set_target_properties(dbg_compare PROPERTIES PREFIX "")
 
 # Eliminate an extraneous -D during compilation.
-set_target_properties(test_dbg PROPERTIES DEFINE_SYMBOL "")
+set_target_properties(dbg_compare PROPERTIES DEFINE_SYMBOL "")
 
 
 ##############################################
@@ -137,7 +137,7 @@ set_property(TARGET htslib
 
 
 add_dependencies(htslib BUILD_HTS)
-add_dependencies(test_dbg htslib)
+add_dependencies(dbg_compare htslib)
 
 
 ##############################################
@@ -193,7 +193,7 @@ set_property(TARGET bifrost
 
 #add_dependencies(BUILD_BIFROST project_bifrost)
 add_dependencies(bifrost BUILD_BIFROST)
-add_dependencies(test_dbg bifrost)
+add_dependencies(dbg_compare bifrost)
 
 
 ##############################################
@@ -203,23 +203,19 @@ add_dependencies(test_dbg bifrost)
 # ------------------------------------------ #
 ##############################################
 
-message(STATUS "Fetching cuttlefish")
-
-include(FetchContent)
-
-message(STATUS "external: ${CMAKE_SOURCE_DIR}/external/")
-
-FetchContent_Declare(
-        project_cuttlefish
-        URL             https://github.com/COMBINE-lab/cuttlefish/archive/refs/tags/v2.2.0.tar.gz
-        CMAKE_ARGS      CMAKE_INSTALL_PREFIX=${CMAKE_SOURCE_DIR}/external/cuttlefish/ .
-        INSTALL_COMMAND $(MAKE) install
-)
-
-FetchContent_MakeAvailable(project_cuttlefish)
-
-set(CUTTLEFISH_DIR _deps/project_cuttlefish-src)
-
+#message(STATUS "Fetching cuttlefish")
+#
+#include(FetchContent)
+#
+#message(STATUS "external: ${CMAKE_SOURCE_DIR}/external/")
+#
+#FetchContent_Declare(
+#        project_cuttlefish
+#        URL             https://github.com/COMBINE-lab/cuttlefish/archive/refs/tags/v2.2.0.tar.gz
+#        CMAKE_ARGS      CMAKE_INSTALL_PREFIX=${CMAKE_SOURCE_DIR}/external/cuttlefish/ .
+#        INSTALL_COMMAND $(MAKE) install
+#)
+#
 #add_custom_target(
 #        BUILD_CUTTLEFISH
 #        ALL
@@ -234,31 +230,32 @@ set(CUTTLEFISH_DIR _deps/project_cuttlefish-src)
 #        COMMAND ${CMAKE_COMMAND} -E copy
 #        ${CUTTLEFISH_DIR}/patches/kmc_patch.diff
 #        ${CMAKE_SOURCE_DIR}/patches/kmc_patch.diff)
-
-message(STATUS "CUTTLEFISH_SOURCE_DIR: ${project_cuttlefish_SOURCE_DIR}")
-
-# Ensure that main library has access to primary dependencies' and secondary dependencies' headers
-include_directories(
-        ${CUTTLEFISH_DIR}/include/
-        ${CMAKE_BINARY_DIR}/external/KMC-3.2.1/
-        ${CMAKE_BINARY_DIR}/external/KMC-3.2.1/kmc_api/
-        ${CMAKE_BINARY_DIR}/external/jemalloc-5.2.1/
-        ${CMAKE_BINARY_DIR}/external/include/
-)
-
-add_library(cuttlefish2 STATIC IMPORTED)
-
-set_property(TARGET cuttlefish2
-        PROPERTY IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/external/cuttlefish/lib/libcfcore_static.a)
-
-add_library(kmc STATIC IMPORTED)
-
-set_property(TARGET kmc
-        PROPERTY IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/external/cuttlefish/lib/libkmc_core.a)
-
+#
+#message(STATUS "CUTTLEFISH_SOURCE_DIR: ${project_cuttlefish_SOURCE_DIR}")
+#
+## Ensure that main library has access to primary dependencies' and secondary dependencies' headers
+#include_directories(
+#        ${CUTTLEFISH_DIR}/include/
+#        ${CUTTLEFISH_DIR}/include/kmc_api/
+#        ${CMAKE_BINARY_DIR}/external/KMC-3.2.1/
+#        ${CMAKE_BINARY_DIR}/external/KMC-3.2.1/kmc_api/
+#        ${CMAKE_BINARY_DIR}/external/jemalloc-5.2.1/
+#        ${CMAKE_BINARY_DIR}/external/include/
+#)
+#
+#add_library(cuttlefish2 STATIC IMPORTED)
+#
+#set_property(TARGET cuttlefish2
+#        PROPERTY IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/external/cuttlefish/lib/libcfcore_static.a)
+#
+#add_library(kmc STATIC IMPORTED)
+#
+#set_property(TARGET kmc
+#        PROPERTY IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/external/cuttlefish/lib/libkmc_core.a)
+#
 #add_dependencies(cuttlefish2 BUILD_CUTTLEFISH)
-add_dependencies(cuttlefish2 project_cuttlefish)
-add_dependencies(test_dbg cuttlefish2)
+##add_dependencies(cuttlefish2 project_cuttlefish)
+#add_dependencies(dbg_compare cuttlefish2)
 
 
 ############################################
@@ -278,11 +275,11 @@ set(TESTS
 foreach(FILENAME_PREFIX ${TESTS})
     add_executable(${FILENAME_PREFIX} src/test/${FILENAME_PREFIX}.cpp)
     target_link_libraries(${FILENAME_PREFIX}
-            test_dbg
+            dbg_compare
             htslib
             bifrost
-            cuttlefish2
-            kmc
+#            cuttlefish2
+#            kmc
             )
 
 endforeach()
@@ -290,7 +287,7 @@ endforeach()
 
 # -------- EXECUTABLES --------
 
-set_target_properties(test_dbg PROPERTIES LINK_FLAGS "-static" )
+set_target_properties(dbg_compare PROPERTIES LINK_FLAGS "-static" )
 SET(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++ -static-libgcc")
 
 set(EXECUTABLES
@@ -300,11 +297,11 @@ set(EXECUTABLES
 foreach(FILENAME_PREFIX ${EXECUTABLES})
     add_executable(${FILENAME_PREFIX} src/executable/${FILENAME_PREFIX}.cpp)
     target_link_libraries(${FILENAME_PREFIX}
-            test_dbg
+            dbg_compare
             htslib
             bifrost
-            cuttlefish2
-            kmc
+#            cuttlefish2
+#            kmc
 #            -static
             )
 
@@ -317,5 +314,5 @@ set(BINARY_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/bin)
 
 # The shared library goes to the bin directory.
 install(TARGETS
-        test_dbg
+        dbg_compare
         DESTINATION ${BINARY_INSTALL_DIR})
