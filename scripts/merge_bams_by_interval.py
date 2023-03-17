@@ -105,7 +105,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    print(args.bams)
-    exit()
-
     main(bam_paths=args.bams, bed_path=args.bed, output_directory=args.o, n_cores=args.c)
