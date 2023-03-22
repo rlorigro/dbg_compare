@@ -34,7 +34,7 @@ def main(bam_path, chunk_size, n_samples, output_directory):
         contig,length = random.choice(contig_lengths)
 
         start = random.randint(1,max(1,length-chunk_size+1))
-        stop = min(length,start + chunk_size - 1)
+        stop = min(length,start + chunk_size - 2)
 
         regions.append([contig,start,stop])
 
