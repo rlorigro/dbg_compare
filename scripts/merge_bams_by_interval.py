@@ -31,20 +31,24 @@ def merge_bams_by_interval(bam_paths, contig, start, stop, output_directory):
 
 
 # Requires samtools installed!
-def get_remote_region_as_bam(bam_path, contig, start, stop, output_directory, token, index=True):
+def get_remote_region_as_bam(bam_path, contig, start, stop, output_directory, token, index=True, region_label=False):
+
     region_string = "%s:%d-%d" % (contig, start, stop)
-    output_filename = os.path.basename(bam_path).split('.')[0] + "_" + region_string.replace(":","_") + ".bam"
+
+    if region_label:
+        output_filename = os.path.basename(bam_path).split('.')[0] + "_" + region_string.replace(":","_") + ".bam"
+    else:
+        output_filename = os.path.basename(bam_path).split('.')[0] + ".bam"
+
     output_path = os.path.join(output_directory,output_filename)
 
     # There is a small chance that this will fail if the token expires between updating and downloading...
     token.update_environment()
 
-    samtools_view_args = ["samtools", "view", "-b", "-h", "-F", "4", "-o", output_filename, bam_path, region_string]
+    samtools_view_args = ["samtools", "view", "-b", "-h", "-F", "4", "-o", output_path, bam_path, region_string]
 
-    with open(output_path, 'a') as file:
-        sys.stderr.write(" ".join(samtools_view_args)+'\n')
-
-        p1 = subprocess.run(samtools_view_args, cwd=output_directory, check=True)
+    sys.stderr.write(" ".join(samtools_view_args)+'\n')
+    p1 = subprocess.run(samtools_view_args, check=True)
 
     success = (p1.returncode == 0)
 
@@ -55,9 +59,9 @@ def get_remote_region_as_bam(bam_path, contig, start, stop, output_directory, to
         sys.stderr.flush()
 
     if index:
-        samtools_index_args = ["samtools", "index", output_filename]
+        samtools_index_args = ["samtools", "index", output_path]
         sys.stderr.write(" ".join(samtools_index_args)+'\n')
-        p1 = subprocess.run(samtools_index_args, cwd=output_directory, check=True)
+        p1 = subprocess.run(samtools_index_args, check=True)
 
         success = (p1.returncode == 0)
 
@@ -73,16 +77,16 @@ def get_remote_region_as_bam(bam_path, contig, start, stop, output_directory, to
 def get_region_coverage(bam_path, contig, start, stop, output_directory):
     region_string = "%s:%d-%d" % (contig, start, stop)
     output_path = os.path.join(output_directory, os.path.basename(bam_path))
-    output_path = output_path.replace(".bam", "_coverage.csv")
+    output_path = output_path.replace(".bam", "_coverage.tsv")
 
     print(output_path)
 
     samtools_args = ["samtools", "coverage", "-r", region_string, bam_path]
 
-    with open(output_path, 'a') as file:
+    with open(output_path, 'w') as file:
         sys.stderr.write(" ".join(samtools_args)+'\n')
 
-        p1 = subprocess.run(samtools_args, stdout=file, cwd=output_directory, check=True)
+        p1 = subprocess.run(samtools_args, stdout=file, check=True)
 
     success = (p1.returncode == 0)
 
@@ -104,7 +108,7 @@ def get_reads_from_bam(bam_path, output_directory):
     with open(output_path, 'a') as file:
         sys.stderr.write(" ".join(samtools_args)+'\n')
 
-        p1 = subprocess.run(samtools_args, stdout=file, cwd=output_directory, check=True)
+        p1 = subprocess.run(samtools_args, stdout=file, check=True)
 
     success = (p1.returncode == 0)
 
@@ -113,6 +117,32 @@ def get_reads_from_bam(bam_path, output_directory):
         sys.stderr.flush()
 
     return output_path
+
+
+def merge_coverages(output_directory):
+    output_filename = "coverage.tsv"
+    output_path = os.path.join(output_directory, output_filename)
+
+    with open(output_path, 'w') as out_file:
+        f = 0
+        for filename in os.listdir(output_directory):
+            if filename.endswith(".tsv") and filename != output_filename:
+                path = os.path.join(output_directory, filename)
+                sample = filename.split("_")[0]
+
+                with open(path, 'r') as file:
+                    for l,line in enumerate(file):
+
+                        # Only write the header once
+                        if f == 0 and l == 0:
+                            out_file.write("sample\t" + line[1:])
+
+                        # Always write the values
+                        if l == 1:
+                            out_file.write(sample + '\t' + line)
+
+                os.remove(path)
+                f += 1
 
 
 def process_region(bam_paths, contig, start, stop, output_directory):
@@ -145,10 +175,11 @@ def process_region(bam_paths, contig, start, stop, output_directory):
         fasta_path = get_reads_from_bam(
             bam_path=local_bam_path,
             output_directory=output_directory)
-        
+
         os.remove(local_bam_path)
         os.remove(local_bam_path + ".bai")
-        os.remove(os.path.join(output_directory,os.path.basename(path) + ".bai"))
+
+    merge_coverages(output_directory)
 
     return
 
