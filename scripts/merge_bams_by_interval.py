@@ -4,6 +4,8 @@ from multiprocessing import Pool
 import subprocess
 import argparse
 import hashlib
+import tarfile
+import shutil
 import sys
 import os
 import re
@@ -180,6 +182,11 @@ def process_region(bam_paths, contig, start, stop, output_directory):
         os.remove(local_bam_path + ".bai")
 
     merge_coverages(output_directory)
+
+    with tarfile.open(output_directory + ".tar.gz", "w:gz") as tar:
+        tar.add(output_directory, arcname=os.path.basename(output_directory))
+
+    shutil.rmtree(output_directory)
 
     return
 
