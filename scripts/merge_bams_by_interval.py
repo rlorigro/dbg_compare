@@ -12,9 +12,7 @@ import re
 import io
 
 
-def merge_bams_by_interval(bam_paths, contig, start, stop, output_directory):
-    # Not attempting to share a token across threads, so each job gets a new instance
-    token = GoogleToken()
+def merge_bams_by_interval(bam_paths, contig, start, stop, output_directory, token):
 
     for path in bam_paths:
         result = get_remote_region_as_bam(
@@ -44,39 +42,37 @@ def get_remote_region_as_bam(bam_path, contig, start, stop, output_directory, to
 
     output_path = os.path.join(output_directory,output_filename)
 
-    # There is a small chance that this will fail if the token expires between updating and downloading...
-    token.update_environment()
-
     samtools_view_args = ["samtools", "view", "-b", "-h", "-F", "4", "-o", output_path, bam_path, region_string]
 
     sys.stderr.write(" ".join(samtools_view_args)+'\n')
-    p1 = subprocess.run(samtools_view_args, check=True)
 
-    success = (p1.returncode == 0)
-
-    print("success: %s" % success)
-
-    if not success:
-        sys.stderr.write("ERROR: " + " ".join([bam_path, contig, start, stop]))
+    # There is a small chance that this will fail if the token expires between updating and downloading...
+    token.update_environment()
+    try:
+        p1 = subprocess.run(samtools_view_args, check=True, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        sys.stderr.write("Status : FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
+        sys.stderr.write("ERROR: " + " ".join([bam_path, contig, str(start), str(stop)]) + '\n')
         sys.stderr.flush()
+        return None
 
     if index:
         samtools_index_args = ["samtools", "index", output_path]
         sys.stderr.write(" ".join(samtools_index_args)+'\n')
-        p1 = subprocess.run(samtools_index_args, check=True)
 
-        success = (p1.returncode == 0)
-
-        print("success: %s" % success)
-
-        if not success:
-            sys.stderr.write("ERROR: " + " ".join([bam_path, contig, start, stop]))
+        token.update_environment()
+        try:
+            p1 = subprocess.run(samtools_index_args, check=True, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as e:
+            sys.stderr.write("Status : FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
+            sys.stderr.write("ERROR: " + " ".join([bam_path, contig, str(start), str(stop)]) + '\n')
             sys.stderr.flush()
+            return None
 
     return output_path
 
 
-def get_region_coverage(bam_path, contig, start, stop, output_directory):
+def get_region_coverage(bam_path, contig, start, stop, output_directory, token):
     region_string = "%s:%d-%d" % (contig, start, stop)
     output_path = os.path.join(output_directory, os.path.basename(bam_path))
     output_path = output_path.replace(".bam", "_coverage.tsv")
@@ -88,18 +84,19 @@ def get_region_coverage(bam_path, contig, start, stop, output_directory):
     with open(output_path, 'w') as file:
         sys.stderr.write(" ".join(samtools_args)+'\n')
 
-        p1 = subprocess.run(samtools_args, stdout=file, check=True)
-
-    success = (p1.returncode == 0)
-
-    if not success:
-        sys.stderr.write("ERROR: " + " ".join([bam_path, contig, start, stop]))
-        sys.stderr.flush()
+        token.update_environment()
+        try:
+            p1 = subprocess.run(samtools_args, stdout=file, check=True, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as e:
+            sys.stderr.write("Status : FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
+            sys.stderr.write("ERROR: " + " ".join([bam_path, contig, str(start), str(stop)]) + '\n')
+            sys.stderr.flush()
+            return None
 
     return output_path
 
 
-def get_reads_from_bam(bam_path, output_directory):
+def get_reads_from_bam(bam_path, output_directory, token):
     output_path = os.path.join(output_directory, os.path.basename(bam_path))
     output_path = output_path.replace(".bam", ".fasta")
 
@@ -110,13 +107,15 @@ def get_reads_from_bam(bam_path, output_directory):
     with open(output_path, 'a') as file:
         sys.stderr.write(" ".join(samtools_args)+'\n')
 
-        p1 = subprocess.run(samtools_args, stdout=file, check=True)
+        token.update_environment()
+        try:
+            p1 = subprocess.run(samtools_args, stdout=file, check=True, stderr=subprocess.PIPE)
 
-    success = (p1.returncode == 0)
-
-    if not success:
-        sys.stderr.write("ERROR: " + " ".join([bam_path]))
-        sys.stderr.flush()
+        except subprocess.CalledProcessError as e:
+            sys.stderr.write("Status : FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
+            sys.stderr.write("ERROR: " + bam_path + '\n')
+            sys.stderr.flush()
+            return None
 
     return output_path
 
@@ -147,10 +146,7 @@ def merge_coverages(output_directory):
                 f += 1
 
 
-def process_region(bam_paths, contig, start, stop, output_directory):
-    # Not attempting to share a token across threads, so each job gets a new instance
-    token = GoogleToken()
-
+def process_region(bam_paths, contig, start, stop, output_directory, token):
     region_string = "%s:%d-%d" % (contig, start, stop)
     output_subdirectory = region_string.replace(":","_")
     output_directory = os.path.join(output_directory, output_subdirectory)
@@ -167,16 +163,27 @@ def process_region(bam_paths, contig, start, stop, output_directory):
             output_directory=output_directory,
             token=token)
 
+        if local_bam_path is None:
+            return
+
         coverage_csv_path = get_region_coverage(
             bam_path=local_bam_path,
             contig=contig,
             start=start,
             stop=stop,
-            output_directory=output_directory)
+            output_directory=output_directory,
+            token=token)
+
+        if coverage_csv_path is None:
+            return
 
         fasta_path = get_reads_from_bam(
             bam_path=local_bam_path,
-            output_directory=output_directory)
+            output_directory=output_directory,
+            token=token)
+
+        if fasta_path is None:
+            return
 
         os.remove(local_bam_path)
         os.remove(local_bam_path + ".bai")
@@ -230,13 +237,15 @@ def main(bam_paths, bed_path, output_directory, n_cores):
     # Contains all the necessary args to fetch a region from the BAMs
     args = list()
 
+    token = GoogleToken()
+
     with open(bed_path, 'r') as file:
         for l,line in enumerate(file):
             contig,start,stop = line.strip().split()
             start = int(start)
             stop = int(stop)
 
-            args.append([bam_paths, contig, start, stop, output_directory])
+            args.append([bam_paths, contig, start, stop, output_directory, token])
 
     with Pool(processes=n_cores) as pool:
         results = pool.starmap(process_region, args)
