@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from pysam import AlignmentFile
 from module.Authenticator import GoogleToken
+from collections import Counter
 
 import argparse
 import random
@@ -16,7 +17,7 @@ def get_remote_header(bam_path, token):
     return header
 
 
-def main(bam_path, chunk_size, n_samples, output_directory):
+def main(bam_path, chunk_size, n_samples, forbidden, output_directory):
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
 
@@ -24,15 +25,23 @@ def main(bam_path, chunk_size, n_samples, output_directory):
     header = get_remote_header(bam_path=bam_path, token=token)
 
     contig_lengths = list()
+    total_length = 0
+
     for r in header.references:
+        if r in forbidden:
+            continue
         l = int(header.get_reference_length(r))
         contig_lengths.append([r,l])
+        total_length += l
 
     regions = list()
 
-    for s in range(n_samples):
-        contig,length = random.choice(contig_lengths)
+    contig_weights = [float(x[1])/float(total_length) for x in contig_lengths]
+    contig_choices = random.choices(contig_lengths, weights=contig_weights, k=n_samples)
 
+    print(Counter([x[0] for x in contig_choices]))
+
+    for contig,length in contig_choices:
         start = random.randint(1,max(1,length-chunk_size+1))
         stop = min(length,start + chunk_size - 2)
 
@@ -74,6 +83,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "-f",
+        required=True,
+        type=parse_comma_separated_string,
+        help="Forbidden contigs, as a comma-separated list"
+    )
+
+    parser.add_argument(
         "-o",
         required=True,
         type=str,
@@ -82,4 +98,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(bam_path=args.i, output_directory=args.o, chunk_size=args.c, n_samples=args.n)
+    main(bam_path=args.i, output_directory=args.o, chunk_size=args.c, forbidden=args.f, n_samples=args.n)
