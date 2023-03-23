@@ -153,6 +153,9 @@ def process_region(bam_paths, contig, start, stop, output_directory, token):
 
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
+    else:
+        sys.stderr.write("WARNING: duplicate region in BED file, skipping %s:%d-%d\n" % (contig, start, stop))
+        return
 
     for path in bam_paths:
         local_bam_path = get_remote_region_as_bam(
