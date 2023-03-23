@@ -84,7 +84,8 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-f",
-        required=True,
+        required=False,
+        default="",
         type=parse_comma_separated_string,
         help="Forbidden contigs, as a comma-separated list"
     )
