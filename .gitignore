@@ -33,5 +33,5 @@
 
 # Misc
 .idea
-__pycache_
+__pycache*
 cmake-build-debug

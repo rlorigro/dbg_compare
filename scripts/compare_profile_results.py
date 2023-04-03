@@ -1,10 +1,14 @@
-from module.Authenticator import GoogleToken
-from google.cloud import storage
+from multiprocessing import Pool
+import argparse
 import tarfile
 import pandas
-import argparse
+import math
 import re
 import os
+
+from matplotlib.lines import Line2D
+from matplotlib import pyplot
+from google.cloud import storage
 
 
 def decode_gs_uri(uri):
@@ -13,15 +17,17 @@ def decode_gs_uri(uri):
     return bucket, file_path
 
 
-def download_gs_uri(uri, output_directory):
-    storage_client = storage.Client()
+def download_gs_uri(uri, output_directory, cache=True):
     bucket, file_path = decode_gs_uri(uri)
-
-    bucket = storage_client.bucket(bucket)
-    blob = bucket.blob(file_path)
-
     output_path = os.path.join(output_directory,os.path.basename(file_path))
-    blob.download_to_filename(output_path)
+
+    if (not os.path.exists(output_path)) or (not cache):
+        storage_client = storage.Client()
+
+        bucket = storage_client.bucket(bucket)
+        blob = bucket.blob(file_path)
+
+        blob.download_to_filename(output_path)
 
     return output_path
 
@@ -82,15 +88,16 @@ def parse_log_file(file):
     return elapsed_real_s, ram_max_kbyte, cpu_percent, cpu_count
 
 
-def get_coverage_vs_time_for_each_tarball(tarball_uris, output_directory):
-    for uri in tarball_uris[:4]:
-        tar_path = download_gs_uri(uri, output_directory)
+def get_resource_stats_for_each_tarball(tarball_paths, output_directory):
+    for tar_path in tarball_paths:
+        # tar_path = download_gs_uri(uri, output_directory)
 
         total_coverage = None
         cpu_percent = None
         cpu_count = None
         elapsed_real_s = None
         ram_max_kbyte = None
+        ram_max_mbyte = None
 
         print(tar_path)
         with tarfile.open(tar_path, "r:gz") as tar:
@@ -104,30 +111,99 @@ def get_coverage_vs_time_for_each_tarball(tarball_uris, output_directory):
                 if name == "log.csv":
                     f = tar.extractfile(item)
                     elapsed_real_s, ram_max_kbyte, cpu_percent, cpu_count = parse_log_file(f)
+                    ram_max_mbyte = float(ram_max_kbyte)/1000
 
-        print(total_coverage, elapsed_real_s, ram_max_kbyte, cpu_percent, cpu_count)
+        # Normalize CPU percent so it shows percent of total CPUs, instead of e.g. 233%
+        adjusted_cpu_percent = cpu_percent / cpu_count
+        print(cpu_percent, cpu_count, adjusted_cpu_percent)
+
+        yield total_coverage, elapsed_real_s, ram_max_mbyte, adjusted_cpu_percent
 
 
-def main(tsv_paths, n_threads, output_directory):
+def main(tsv_path, n_threads, output_directory):
     output_directory = os.path.abspath(output_directory)
 
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
 
-    for path in tsv_paths:
-        df = pandas.read_table(path, sep='\t', header=0)
+    tool_names = ["bifrost", "ggcat", "cuttlefish"]
+    fig,axes = pyplot.subplots(nrows=2,ncols=2)
 
-        n_rows, n_cols = df.shape
+    df = pandas.read_table(tsv_path, sep='\t', header=0)
+
+    print(df.columns.values)
+
+    n_rows, n_cols = df.shape
+
+    colormap_name = {
+        "bifrost":"Greens",
+        "ggcat":"Blues",
+        "cuttlefish":"Oranges"
+    }
+
+    for name in tool_names:
+        colormap = pyplot.colormaps.get_cmap(colormap_name[name])
 
         for i in range(n_rows):
+            total_coverage = list()
+            elapsed_real_s = list()
+            ram_max_mbyte = list()
+            cpu_percent = list()
+
             bams = parse_comma_separated_string(df["bams"][i])
-            bifrost_tarballs = parse_comma_separated_string(df["output_tarballs_bifrost"][i])
+
+            try:
+                tarballs = parse_comma_separated_string(df["output_tarballs_"+name][i])
+            except Exception as e:
+                print(e)
+                continue
 
             n_samples = len(bams)
-            n_tarballs = len(bifrost_tarballs)
 
-            print(i, n_samples, n_tarballs)
-            get_coverage_vs_time_for_each_tarball(bifrost_tarballs, output_directory)
+            color_index = float(math.log2(n_samples))/(n_rows+1)
+            color = colormap(color_index)
+
+            # Each tool downloads its regions to its own subdirectory to prevent overwriting (filenames are by region)
+            output_subdirectory = os.path.join(output_directory, name)
+            output_subdirectory = os.path.join(output_subdirectory, str(n_samples))
+            if not os.path.exists(output_subdirectory):
+                os.makedirs(output_subdirectory)
+
+            args = [[t,output_subdirectory] for t in tarballs]
+            print(len(tarballs))
+
+            with Pool(n_threads) as pool:
+                results = pool.starmap(download_gs_uri, args)
+
+            for stats in get_resource_stats_for_each_tarball(results, output_subdirectory):
+                total_coverage.append(stats[0])
+                elapsed_real_s.append(stats[1])
+                ram_max_mbyte.append(stats[2])
+                cpu_percent.append(stats[3])
+
+            axes[0][0].scatter(x=total_coverage, y=elapsed_real_s, s=0.5, color=color)
+            axes[0][1].scatter(x=total_coverage, y=ram_max_mbyte, s=0.5, color=color)
+            axes[1][0].scatter(x=total_coverage, y=cpu_percent, s=0.5, color=color)
+
+    axes[0][0].set_xlabel("Average depth")
+    axes[0][1].set_xlabel("Average depth")
+    axes[1][0].set_xlabel("Average depth")
+    axes[0][0].set_ylabel("Run time (min)")
+    axes[0][1].set_ylabel("Peak RAM (MB)")
+    axes[1][0].set_ylabel("CPU usage (% of available cores)")
+    axes[1][1].axis("off")
+
+    colors = ["green", "blue", "orange"]
+    custom_lines = list()
+    for i in range(len(colors)):
+        custom_lines.append(Line2D([0], [0], color=colors[i], lw=4))
+
+    axes[0][1].legend(custom_lines, tool_names, bbox_to_anchor=(1.1, 1))
+
+    pyplot.tight_layout()
+
+    pyplot.show()
+    pyplot.close()
 
 
 def parse_comma_separated_string(s):
@@ -140,8 +216,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--tsv",
         required=True,
-        type=parse_comma_separated_string,
-        help="Input tsvs containing fastas to be used for profiling"
+        type=str,
+        help="Input tsv containing URIs, linking to tarballs to be parsed"
     )
 
     parser.add_argument(
@@ -161,4 +237,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(tsv_paths=args.tsv, n_threads=args.t, output_directory=args.o)
+    main(tsv_path=args.tsv, n_threads=args.t, output_directory=args.o)
