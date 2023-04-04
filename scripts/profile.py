@@ -137,6 +137,18 @@ def parse_comma_separated_string(s):
     return re.split(r'[{\'\",}]+', s.strip("\"\'{}"))
 
 
+def parse_input_string(s):
+    paths = None
+
+    if os.path.isdir(os.path.abspath(s)):
+        paths = [os.path.join(s,x) for x in os.listdir(s)]
+        print(paths[:10])
+    else:
+        paths = parse_comma_separated_string(s)
+
+    return paths
+
+
 def parse_choice(s):
     s = s.lower()
 
@@ -153,7 +165,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--tars",
         required=True,
-        type=parse_comma_separated_string,
+        type=parse_input_string,
         help="Input tarballs (.tar.gz) containing fastas to be used for profiling"
     )
 
