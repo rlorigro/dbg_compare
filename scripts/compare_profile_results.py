@@ -1,3 +1,5 @@
+from module.GsUri import download_gs_uri
+
 from multiprocessing import Pool
 import argparse
 import tarfile
@@ -12,7 +14,6 @@ import os
 from matplotlib.lines import Line2D
 from matplotlib import pyplot
 from matplotlib import colors
-from google.cloud import storage
 
 
 def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
@@ -20,29 +21,6 @@ def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
         'trunc({n},{a:.2f},{b:.2f})'.format(n=cmap.name, a=minval, b=maxval),
         cmap(numpy.linspace(minval, maxval, n)))
     return new_cmap
-
-
-def decode_gs_uri(uri):
-    tokens = uri.split('/')
-    bucket, file_path = tokens[2], '/'.join(tokens[3:])
-    return bucket, file_path
-
-
-def download_gs_uri(uri, output_directory, cache=True):
-    bucket, file_path = decode_gs_uri(uri)
-    output_path = os.path.join(output_directory,os.path.basename(file_path))
-
-    if (not os.path.exists(output_path)) or (not cache):
-        sys.stderr.write("Downloading: %s\n" % output_path)
-        sys.stderr.flush()
-        storage_client = storage.Client()
-
-        bucket = storage_client.bucket(bucket)
-        blob = bucket.blob(file_path)
-
-        blob.download_to_filename(output_path)
-
-    return output_path
 
 
 def untar(tar_path):
@@ -171,7 +149,7 @@ def main(tsv_path, n_threads, output_directory):
 
             print(row_name)
 
-            if "100Kbp" not in row_name:
+            if "20Kbp" not in row_name:
                 print("Skipping")
                 continue
 
@@ -216,9 +194,9 @@ def main(tsv_path, n_threads, output_directory):
                 if stats[0] > max_coverage:
                     max_coverage = stats[0]
 
-            axes[0][0].scatter(x=total_coverage, y=elapsed_real_s, s=0.7, color=color, alpha=0.5)
-            axes[0][1].scatter(x=total_coverage, y=ram_max_mbyte, s=0.7, color=color, alpha=0.5)
-            axes[1][0].scatter(x=total_coverage, y=cpu_percent, s=0.7, color=color, alpha=0.5)
+            axes[0][0].scatter(x=total_coverage, y=elapsed_real_s, s=0.7, color=color, alpha=0.2)
+            axes[0][1].scatter(x=total_coverage, y=ram_max_mbyte, s=0.7, color=color, alpha=0.2)
+            axes[1][0].scatter(x=total_coverage, y=cpu_percent, s=0.7, color=color, alpha=0.2)
 
             # Only plot coverage histogram once
             if n == 0:
