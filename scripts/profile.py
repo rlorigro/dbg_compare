@@ -7,7 +7,7 @@ import re
 import os
 
 
-def run_cuttlefish(fasta_path, k, output_directory, n_threads):
+def run_cuttlefish(fasta_path, k, output_directory, n_threads, timeout=60*60*24):
     log_path = os.path.join(output_directory, "log.csv")
     cuttlefish_prefix = os.path.join(output_directory, "cuttlefish")
 
@@ -19,39 +19,49 @@ def run_cuttlefish(fasta_path, k, output_directory, n_threads):
     sys.stderr.write(" ".join(args)+'\n')
 
     try:
-        p1 = subprocess.run(args, check=True, stderr=subprocess.PIPE)
+        p1 = subprocess.run(args, check=True, stderr=subprocess.PIPE, timeout=timeout)
 
     except subprocess.CalledProcessError as e:
         sys.stderr.write("Status : FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
         sys.stderr.flush()
         return None
 
+    except subprocess.TimeoutExpired as e:
+        sys.stderr.write("Status : FAIL due to timeout " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
+        sys.stderr.flush()
+        return None
+
     return log_path
 
 
-def run_ggcat(fasta_path, k, output_directory, n_threads):
+def run_ggcat(fasta_path, k, output_directory, n_threads, timeout=60*60*24):
     log_path = os.path.join(output_directory, "log.csv")
     ggcat_prefix = os.path.join(output_directory, "ggcat")
 
     time_args = ["/usr/bin/time","-f","elapsed_real_s,%E\\nelapsed_kernel_s,%S\\nram_max_kbyte,%M\\nram_avg_kbyte,%t\\ncpu_percent,%P\\n","-o",log_path]
 
-    # ggcat build -k <k_value> -j <threads_count> <input_files> -o <output_file>
-    args = time_args + ["ggcat", "build", "-k", str(k), "-j", str(n_threads), fasta_path, "-o", os.path.join(output_directory, ggcat_prefix + ".fasta")]
+    # ggcat build -e -k <k_value> -j <threads_count> <input_files> -o <output_file>
+    args = time_args + ["ggcat", "build", "-e", "-k", str(k), "-j", str(n_threads), fasta_path, "-o", os.path.join(output_directory, ggcat_prefix + ".fasta")]
 
     sys.stderr.write(" ".join(args)+'\n')
 
     try:
-        p1 = subprocess.run(args, check=True, stderr=subprocess.PIPE)
+        p1 = subprocess.run(args, check=True, stderr=subprocess.PIPE, timeout=timeout)
 
     except subprocess.CalledProcessError as e:
         sys.stderr.write("Status : FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
         sys.stderr.flush()
         return None
 
+    except subprocess.TimeoutExpired as e:
+        sys.stderr.write("Status : FAIL due to timeout " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
+        sys.stderr.flush()
+        return None
+
     return log_path
 
 
-def run_bifrost(fasta_path, k, output_directory, n_threads):
+def run_bifrost(fasta_path, k, output_directory, n_threads, timeout=60*60*24):
     log_path = os.path.join(output_directory, "log.csv")
     bifrost_prefix = os.path.join(output_directory, "bifrost")
 
@@ -61,7 +71,7 @@ def run_bifrost(fasta_path, k, output_directory, n_threads):
     sys.stderr.write(" ".join(args)+'\n')
 
     try:
-        p1 = subprocess.run(args, check=True, stderr=subprocess.PIPE)
+        p1 = subprocess.run(args, check=True, stderr=subprocess.PIPE, timeout=timeout)
 
         # Bifrost doesn't have a proper error signal smh
         if b'Error' in p1.stderr:
@@ -72,10 +82,15 @@ def run_bifrost(fasta_path, k, output_directory, n_threads):
         sys.stderr.flush()
         return None
 
+    except subprocess.TimeoutExpired as e:
+        sys.stderr.write("Status : FAIL due to timeout " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
+        sys.stderr.flush()
+        return None
+
     return log_path
 
 
-def main(tar_paths, k, graph_builder, n_cores, output_directory):
+def main(tar_paths, k, graph_builder, n_cores, timeout, output_directory):
     output_directory = os.path.abspath(output_directory)
 
     if not os.path.exists(output_directory):
@@ -110,23 +125,24 @@ def main(tar_paths, k, graph_builder, n_cores, output_directory):
 
         # Add specified graph outputs to subdirectory
         if graph_builder == "bifrost":
-            log_path = run_bifrost(combined_fasta_path, k, output_subdirectory, n_cores)
+            log_path = run_bifrost(combined_fasta_path, k, output_subdirectory, n_cores, timeout=timeout)
         elif graph_builder == "ggcat":
-            log_path = run_ggcat(combined_fasta_path, k, output_subdirectory, n_cores)
+            log_path = run_ggcat(combined_fasta_path, k, output_subdirectory, n_cores, timeout=timeout)
         elif graph_builder == "cuttlefish":
-            log_path = run_cuttlefish(combined_fasta_path, k, output_subdirectory, n_cores)
+            log_path = run_cuttlefish(combined_fasta_path, k, output_subdirectory, n_cores, timeout=timeout)
         else:
             exit("ERROR: unrecognized choice for graph builder")
 
-        # Update the log to contain the number of processors used
-        with open(log_path, 'rb+') as file:
-            # Move pointer to the last char of the file (for some reason there is extra newline)
-            file.seek(-1, os.SEEK_END)
-            file.write(("cpu_count,%d\n" % n_cores).encode())
+        if log_path is not None:
+            # Update the log to contain the number of processors used
+            with open(log_path, 'rb+') as file:
+                # Move pointer to the last char of the file (for some reason there is extra newline)
+                file.seek(-1, os.SEEK_END)
+                file.write(("cpu_count,%d\n" % n_cores).encode())
 
-        # Tar the outputs: coverage TSV, log CSV, and bifrost gfa/index
-        with tarfile.open(output_subdirectory + ".tar.gz", "w:gz") as tar:
-            tar.add(output_subdirectory, arcname=os.path.basename(output_subdirectory))
+            # Tar the outputs: coverage TSV, log CSV, and bifrost gfa/index
+            with tarfile.open(output_subdirectory + ".tar.gz", "w:gz") as tar:
+                tar.add(output_subdirectory, arcname=os.path.basename(output_subdirectory))
 
         # Remove intermediates
         os.remove(combined_fasta_path)
@@ -185,6 +201,14 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--timeout",
+        required=False,
+        default=60*60*24,
+        type=int,
+        help="Don't let graph building step run for longer than this duration (skip without error if exceeded)"
+    )
+
+    parser.add_argument(
         "-o",
         required=True,
         type=str,
@@ -200,4 +224,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(tar_paths=args.tars, k=args.k, graph_builder=args.g, output_directory=args.o, n_cores=args.c)
+    main(tar_paths=args.tars, k=args.k, graph_builder=args.g, output_directory=args.o, n_cores=args.c, timeout=args.timeout)
