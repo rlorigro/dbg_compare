@@ -1,6 +1,7 @@
 import subprocess
 import argparse
 import tarfile
+import random
 import shutil
 import sys
 import re
@@ -22,12 +23,12 @@ def run_cuttlefish(fasta_path, k, output_directory, n_threads, timeout=60*60*24)
         p1 = subprocess.run(args, check=True, stderr=subprocess.PIPE, timeout=timeout)
 
     except subprocess.CalledProcessError as e:
-        sys.stderr.write("Status : FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
+        sys.stderr.write("Status: FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
         sys.stderr.flush()
         return None
 
     except subprocess.TimeoutExpired as e:
-        sys.stderr.write("Status : FAIL due to timeout " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
+        sys.stderr.write("Status: FAIL due to timeout " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
         sys.stderr.flush()
         return None
 
@@ -49,12 +50,12 @@ def run_ggcat(fasta_path, k, output_directory, n_threads, timeout=60*60*24):
         p1 = subprocess.run(args, check=True, stderr=subprocess.PIPE, timeout=timeout)
 
     except subprocess.CalledProcessError as e:
-        sys.stderr.write("Status : FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
+        sys.stderr.write("Status: FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
         sys.stderr.flush()
         return None
 
     except subprocess.TimeoutExpired as e:
-        sys.stderr.write("Status : FAIL due to timeout " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
+        sys.stderr.write("Status: FAIL due to timeout " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
         sys.stderr.flush()
         return None
 
@@ -78,23 +79,32 @@ def run_bifrost(fasta_path, k, output_directory, n_threads, timeout=60*60*24):
             exit(p1.stderr.decode('utf8'))
 
     except subprocess.CalledProcessError as e:
-        sys.stderr.write("Status : FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
+        sys.stderr.write("Status: FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
         sys.stderr.flush()
         return None
 
     except subprocess.TimeoutExpired as e:
-        sys.stderr.write("Status : FAIL due to timeout " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
+        sys.stderr.write("Status: FAIL due to timeout " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
         sys.stderr.flush()
         return None
 
     return log_path
 
 
-def main(tar_paths, k, graph_builder, n_cores, timeout, output_directory):
+def main(tar_paths, k, graph_builder, n_cores, timeout, n_samples, output_directory):
     output_directory = os.path.abspath(output_directory)
 
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
+
+    if (n_samples > len(tar_paths)) or (n_samples is None) or (n_samples <= 0):
+        n_samples = len(tar_paths)
+
+    # Reproducible shuffle of paths
+    random.Random(37).shuffle(tar_paths)
+
+    # Subsample
+    tar_paths = tar_paths[:n_samples]
 
     for tar_path in tar_paths:
         output_prefix = os.path.basename(tar_path).split('.')[0]
@@ -193,6 +203,14 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "-n",
+        required=False,
+        default=None,
+        type=int,
+        help="How many samples to use for profiling"
+    )
+
+    parser.add_argument(
         "-k",
         required=False,
         default=31,
@@ -224,4 +242,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(tar_paths=args.tars, k=args.k, graph_builder=args.g, output_directory=args.o, n_cores=args.c, timeout=args.timeout)
+    main(tar_paths=args.tars, k=args.k, graph_builder=args.g, output_directory=args.o, n_cores=args.c, n_samples=args.n, timeout=args.timeout)
