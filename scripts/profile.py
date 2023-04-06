@@ -8,6 +8,15 @@ import re
 import os
 
 
+def dry_run_test(output_directory):
+    log_path = os.path.join(output_directory, "log.csv")
+
+    with open(log_path,'w') as file:
+        file.write("test,test\n\n")
+
+    return log_path
+
+
 def run_cuttlefish(fasta_path, k, output_directory, n_threads, timeout=60*60*24):
     log_path = os.path.join(output_directory, "log.csv")
     cuttlefish_prefix = os.path.join(output_directory, "cuttlefish")
@@ -97,15 +106,6 @@ def main(tar_paths, k, graph_builder, n_cores, timeout, n_samples, output_direct
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
 
-    if (n_samples > len(tar_paths)) or (n_samples is None) or (n_samples <= 0):
-        n_samples = len(tar_paths)
-
-    # Reproducible shuffle of paths
-    random.Random(37).shuffle(tar_paths)
-
-    # Subsample
-    tar_paths = tar_paths[:n_samples]
-
     for tar_path in tar_paths:
         output_prefix = os.path.basename(tar_path).split('.')[0]
         output_subdirectory = os.path.join(output_directory, output_prefix)
@@ -116,10 +116,22 @@ def main(tar_paths, k, graph_builder, n_cores, timeout, n_samples, output_direct
         combined_fasta_path = os.path.join(output_directory, output_prefix + ".fasta")
         output_tsv_path = os.path.join(output_subdirectory, "coverage.tsv")
 
+        n = 0
+        samples_visited = set()
+        tsv_lines_per_sample = dict()
+
         # FASTAs for this region need to be combined
         with tarfile.open(tar_path, "r:gz") as tar, open(combined_fasta_path, 'wb') as combined_fasta:
             for item in tar.getmembers():
                 if item.name.endswith(".fasta"):
+
+                    # Arbitrarily sample the top n in the list
+                    n += 1
+                    if n > n_samples:
+                        continue
+
+                    samples_visited.add(os.path.basename(item.name).split('.')[0])
+
                     f = tar.extractfile(item)
                     for line in f.readlines():
                         combined_fasta.write(line)
@@ -128,10 +140,24 @@ def main(tar_paths, k, graph_builder, n_cores, timeout, n_samples, output_direct
                 if item.name.endswith(".tsv"):
                     f = tar.extractfile(item)
 
-                    # This is a dumb way to extract the file, but couldn't find anything simpler
-                    with open(output_tsv_path, 'wb') as out_tsv:
-                        for l in f.readlines():
-                            out_tsv.write(l)
+                    # If we are subsampling, need to index the lines by sample so only relevant ones can be copied later
+                    for l,line in enumerate(f.readlines()):
+                        line = line.decode('utf8')
+                        tokens = line.split('\t')
+
+                        name = None
+                        if l == 0:
+                            name = "header"
+                        else:
+                            name = tokens[0]
+
+                        tsv_lines_per_sample[name] = line
+
+        # Write the coverage data for the samples that were visited
+        with open(output_tsv_path, 'w') as out_tsv:
+            out_tsv.write(tsv_lines_per_sample["header"])
+            for s in samples_visited:
+                out_tsv.write(tsv_lines_per_sample[s])
 
         # Add specified graph outputs to subdirectory
         if graph_builder == "bifrost":
@@ -140,6 +166,8 @@ def main(tar_paths, k, graph_builder, n_cores, timeout, n_samples, output_direct
             log_path = run_ggcat(combined_fasta_path, k, output_subdirectory, n_cores, timeout=timeout)
         elif graph_builder == "cuttlefish":
             log_path = run_cuttlefish(combined_fasta_path, k, output_subdirectory, n_cores, timeout=timeout)
+        elif graph_builder == "test":
+            log_path = dry_run_test(output_directory)
         else:
             exit("ERROR: unrecognized choice for graph builder")
 
@@ -178,7 +206,7 @@ def parse_input_string(s):
 def parse_choice(s):
     s = s.lower()
 
-    choices = {"bifrost", "cuttlefish", "ggcat"}
+    choices = {"bifrost", "cuttlefish", "ggcat", "test"}
     if s not in choices:
         exit("ERROR: must select one of the following tools to profile: " + str(choices))
 
