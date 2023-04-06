@@ -129,7 +129,7 @@ def merge_coverages(output_directory):
         for filename in os.listdir(output_directory):
             if filename.endswith(".tsv") and filename != output_filename:
                 path = os.path.join(output_directory, filename)
-                sample = filename.split("_")[0]
+                sample = filename.replace("_coverage.tsv","")
 
                 with open(path, 'r') as file:
                     for l,line in enumerate(file):
