@@ -127,9 +127,9 @@ def main(tsv_path, n_threads, required_substring, output_directory):
     print(n_rows)
 
     colormaps = {
-        "bifrost":pyplot.colormaps.get_cmap("Greens"),
-        "ggcat":truncate_colormap(pyplot.colormaps.get_cmap("Blues"), maxval=0.8),
-        "cuttlefish":pyplot.colormaps.get_cmap("Purples")
+        "bifrost":pyplot.get_cmap("Greens"),
+        "ggcat":truncate_colormap(pyplot.get_cmap("Blues"), maxval=0.8),
+        "cuttlefish":pyplot.get_cmap("Purples")
     }
 
     coverage_colormap = pyplot.colormaps.get_cmap("gist_heat")
