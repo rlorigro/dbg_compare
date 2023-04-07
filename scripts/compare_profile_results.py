@@ -111,7 +111,7 @@ def get_resource_stats_for_tarball(tar_path):
     return total_coverage, elapsed_real_s, ram_max_mbyte, adjusted_cpu_percent
 
 
-def main(tsv_path, n_threads, output_directory):
+def main(tsv_path, n_threads, required_substring, output_directory):
     output_directory = os.path.abspath(output_directory)
 
     if not os.path.exists(output_directory):
@@ -149,8 +149,8 @@ def main(tsv_path, n_threads, output_directory):
 
             print(row_name)
 
-            if "20Kbp" not in row_name:
-                print("Skipping")
+            if (required_substring is not None) and (required_substring not in row_name):
+                print("Skipping '%s' because '%s' not found in name" % (row_name, required_substring))
                 continue
 
             bams = parse_comma_separated_string(df.iloc[i]["bams"])
@@ -238,9 +238,10 @@ def main(tsv_path, n_threads, output_directory):
     for i in range(len(colors)):
         custom_lines.append(Line2D([0], [0], color=colors[i], lw=4))
 
-    axes[0][1].legend(custom_lines, tool_names, bbox_to_anchor=(1.1, 1))
-
     fig.set_size_inches(12,9)
+
+    axes[0][1].legend(custom_lines, tool_names, bbox_to_anchor=(1.5, 1))
+
     pyplot.tight_layout()
 
     pyplot.savefig("resource_usage.png",dpi=200)
@@ -272,6 +273,14 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "-s",
+        required=False,
+        default=None,
+        type=str,
+        help="Required substring to subset a table by row header"
+    )
+
+    parser.add_argument(
         "-o",
         required=True,
         type=str,
@@ -280,4 +289,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(tsv_path=args.tsv, n_threads=args.t, output_directory=args.o)
+    main(tsv_path=args.tsv, n_threads=args.t, required_substring=args.s, output_directory=args.o)
