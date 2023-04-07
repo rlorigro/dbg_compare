@@ -132,7 +132,7 @@ def main(tsv_path, n_threads, required_substring, output_directory):
         "cuttlefish":pyplot.get_cmap("Purples")
     }
 
-    coverage_colormap = pyplot.colormaps.get_cmap("gist_heat")
+    coverage_colormap = pyplot.get_cmap("gist_heat")
     max_coverage = 0
 
     for n,name in enumerate(tool_names):
