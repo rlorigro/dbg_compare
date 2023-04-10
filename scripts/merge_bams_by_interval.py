@@ -183,7 +183,7 @@ def process_region(bam_paths, contig, start, stop, output_directory, token):
             sys.stderr.write("ERROR: expected file path not found: %s" % path)
             exit()
 
-    merge_coverages(output_directory, expected_sample_count)
+    merge_coverages(output_directory=output_directory, expected_sample_count=len(bam_paths))
 
     with tarfile.open(output_directory + ".tar.gz", "w:gz") as tar:
         tar.add(output_directory, arcname=os.path.basename(output_directory))
@@ -244,8 +244,10 @@ def main(bam_paths, bed_path, output_directory, n_cores):
 
     with Pool(processes=n_cores) as pool:
         results = pool.starmap(process_region, args)
+        pool.close()
+        pool.join()
 
-    sys.stderr.write("Files prepared:")
+    sys.stderr.write("Files prepared:\n")
     for filename in os.listdir(output_directory):
         sys.stderr.write(filename)
         sys.stderr.write('\n')
