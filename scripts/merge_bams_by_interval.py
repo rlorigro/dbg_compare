@@ -12,35 +12,9 @@ import re
 import io
 
 
-def merge_bams_by_interval(bam_paths, contig, start, stop, output_directory, token):
-
-    for path in bam_paths:
-        result = get_remote_region_as_bam(
-            bam_path=path,
-            contig=contig,
-            start=start,
-            stop=stop,
-            output_directory=output_directory,
-            token=token
-        )
-
-        if not result[0]:
-            return result
-
-    return True, None
-
-
 # Requires samtools installed!
-def get_remote_region_as_bam(bam_path, contig, start, stop, output_directory, token, index=True, region_label=False):
-
+def get_remote_region_as_bam(bam_path, output_path, contig, start, stop, token, index=True, region_label=False):
     region_string = "%s:%d-%d" % (contig, start, stop)
-
-    if region_label:
-        output_filename = os.path.basename(bam_path).split('.')[0] + "_" + region_string.replace(":","_") + ".bam"
-    else:
-        output_filename = os.path.basename(bam_path).split('.')[0] + ".bam"
-
-    output_path = os.path.join(output_directory,output_filename)
 
     samtools_view_args = ["samtools", "view", "-b", "-h", "-F", "4", "-o", output_path, bam_path, region_string]
 
@@ -55,6 +29,9 @@ def get_remote_region_as_bam(bam_path, contig, start, stop, output_directory, to
         sys.stderr.write("ERROR: " + " ".join([bam_path, contig, str(start), str(stop)]) + '\n')
         sys.stderr.flush()
         return None
+    except Exception as e:
+        sys.stderr.write(str(e))
+        return None
 
     if index:
         samtools_index_args = ["samtools", "index", output_path]
@@ -68,17 +45,15 @@ def get_remote_region_as_bam(bam_path, contig, start, stop, output_directory, to
             sys.stderr.write("ERROR: " + " ".join([bam_path, contig, str(start), str(stop)]) + '\n')
             sys.stderr.flush()
             return None
+        except Exception as e:
+            sys.stderr.write(str(e))
+            return None
 
     return output_path
 
 
-def get_region_coverage(bam_path, contig, start, stop, output_directory, token):
+def get_region_coverage(bam_path, output_path, contig, start, stop, token):
     region_string = "%s:%d-%d" % (contig, start, stop)
-    output_path = os.path.join(output_directory, os.path.basename(bam_path))
-    output_path = output_path.replace(".bam", "_coverage.tsv")
-
-    print(output_path)
-
     samtools_args = ["samtools", "coverage", "-r", region_string, bam_path]
 
     with open(output_path, 'w') as file:
@@ -92,14 +67,14 @@ def get_region_coverage(bam_path, contig, start, stop, output_directory, token):
             sys.stderr.write("ERROR: " + " ".join([bam_path, contig, str(start), str(stop)]) + '\n')
             sys.stderr.flush()
             return None
+        except Exception as e:
+            sys.stderr.write(str(e))
+            return None
 
     return output_path
 
 
-def get_reads_from_bam(bam_path, output_directory, token):
-    output_path = os.path.join(output_directory, os.path.basename(bam_path))
-    output_path = output_path.replace(".bam", ".fasta")
-
+def get_reads_from_bam(bam_path, output_path, token):
     print(output_path)
 
     samtools_args = ["samtools", "fasta", bam_path]
@@ -115,6 +90,9 @@ def get_reads_from_bam(bam_path, output_directory, token):
             sys.stderr.write("Status : FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
             sys.stderr.write("ERROR: " + bam_path + '\n')
             sys.stderr.flush()
+            return None
+        except Exception as e:
+            sys.stderr.write(str(e))
             return None
 
     return output_path
@@ -157,39 +135,50 @@ def process_region(bam_paths, contig, start, stop, output_directory, token):
         sys.stderr.write("WARNING: duplicate region in BED file, skipping %s:%d-%d\n" % (contig, start, stop))
         return
 
-    for path in bam_paths:
-        local_bam_path = get_remote_region_as_bam(
-            bam_path=path,
+    paths_to_validate = list()
+
+    for bam_path in bam_paths:
+        local_bam_filename = os.path.basename(bam_path).split('.')[0] + "_" + region_string.replace(":","_") + ".bam"
+        local_bam_path = os.path.join(output_directory,local_bam_filename)
+
+        fasta_path = os.path.join(output_directory, os.path.basename(local_bam_path))
+        fasta_path = fasta_path.replace(".bam", ".fasta")
+
+        coverage_path = os.path.join(output_directory, os.path.basename(bam_path))
+        coverage_path = coverage_path.replace(".bam", "_coverage.tsv")
+
+        paths_to_validate.append(fasta_path)
+        paths_to_validate.append(coverage_path)
+
+        get_remote_region_as_bam(
+            bam_path=bam_path,
+            output_path=local_bam_path,
             contig=contig,
             start=start,
             stop=stop,
-            output_directory=output_directory,
             token=token)
 
-        if local_bam_path is None:
-            return
-
-        coverage_csv_path = get_region_coverage(
+        get_region_coverage(
             bam_path=local_bam_path,
+            output_path=coverage_path,
             contig=contig,
             start=start,
             stop=stop,
-            output_directory=output_directory,
             token=token)
 
-        if coverage_csv_path is None:
-            return
-
-        fasta_path = get_reads_from_bam(
+        get_reads_from_bam(
             bam_path=local_bam_path,
-            output_directory=output_directory,
+            output_path=fasta_path,
             token=token)
-
-        if fasta_path is None:
-            return
 
         os.remove(local_bam_path)
         os.remove(local_bam_path + ".bai")
+
+    # Do a sanity check to see that paths exist
+    for path in paths_to_validate:
+        if not os.path.exists(path):
+            sys.stderr.write("ERROR: expected file path not found: %s" % path)
+            exit()
 
     merge_coverages(output_directory)
 
@@ -253,9 +242,10 @@ def main(bam_paths, bed_path, output_directory, n_cores):
     with Pool(processes=n_cores) as pool:
         results = pool.starmap(process_region, args)
 
-    # all_succeeded = True
-    # for r,result in enumerate(results):
-    #     result.get()
+    sys.stderr.write("Files prepared:")
+    for filename in os.listdir(output_directory):
+        sys.stderr.write(filename)
+        sys.stderr.write('\n')
 
 
 def parse_comma_separated_string(s):
