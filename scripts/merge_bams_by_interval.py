@@ -98,7 +98,7 @@ def get_reads_from_bam(bam_path, output_path, token):
     return output_path
 
 
-def merge_coverages(output_directory):
+def merge_coverages(output_directory, expected_sample_count=None):
     output_filename = "coverage.tsv"
     output_path = os.path.join(output_directory, output_filename)
 
@@ -122,6 +122,9 @@ def merge_coverages(output_directory):
 
                 os.remove(path)
                 f += 1
+
+    if f != expected_sample_count:
+        sys.stderr.write("ERROR: number of coverage TSV objects != number of samples: %d != %d" % (f, expected_sample_count))
 
 
 def process_region(bam_paths, contig, start, stop, output_directory, token):
@@ -180,7 +183,7 @@ def process_region(bam_paths, contig, start, stop, output_directory, token):
             sys.stderr.write("ERROR: expected file path not found: %s" % path)
             exit()
 
-    merge_coverages(output_directory)
+    merge_coverages(output_directory, expected_sample_count)
 
     with tarfile.open(output_directory + ".tar.gz", "w:gz") as tar:
         tar.add(output_directory, arcname=os.path.basename(output_directory))
