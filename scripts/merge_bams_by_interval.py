@@ -26,7 +26,6 @@ def get_remote_region_as_bam(bam_path, output_path, contig, start, stop, token, 
         p1 = subprocess.run(samtools_view_args, check=True, stderr=subprocess.PIPE)
     except subprocess.CalledProcessError as e:
         sys.stderr.write("Status : FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
-        sys.stderr.write("ERROR: " + " ".join([bam_path, contig, str(start), str(stop)]) + '\n')
         sys.stderr.flush()
         return False
     except Exception as e:
@@ -42,7 +41,6 @@ def get_remote_region_as_bam(bam_path, output_path, contig, start, stop, token, 
             p1 = subprocess.run(samtools_index_args, check=True, stderr=subprocess.PIPE)
         except subprocess.CalledProcessError as e:
             sys.stderr.write("Status : FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
-            sys.stderr.write("ERROR: " + " ".join([bam_path, contig, str(start), str(stop)]) + '\n')
             sys.stderr.flush()
             return False
         except Exception as e:
@@ -64,7 +62,6 @@ def get_region_coverage(bam_path, output_path, contig, start, stop, token):
             p1 = subprocess.run(samtools_args, stdout=file, check=True, stderr=subprocess.PIPE)
         except subprocess.CalledProcessError as e:
             sys.stderr.write("Status : FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
-            sys.stderr.write("ERROR: " + " ".join([bam_path, contig, str(start), str(stop)]) + '\n')
             sys.stderr.flush()
             return False
         except Exception as e:
@@ -86,7 +83,6 @@ def get_reads_from_bam(bam_path, output_path, token):
 
         except subprocess.CalledProcessError as e:
             sys.stderr.write("Status : FAIL " + '\n' + (e.stderr.decode("utf8") if e.stderr is not None else "") + '\n')
-            sys.stderr.write("ERROR: " + bam_path + '\n')
             sys.stderr.flush()
             return False
         except Exception as e:
@@ -122,7 +118,10 @@ def merge_coverages(output_directory, expected_sample_count=None):
                 f += 1
 
     if f != expected_sample_count:
-        sys.stderr.write("ERROR: number of coverage TSV objects != number of samples: %d != %d" % (f, expected_sample_count))
+        sys.stderr.write("ERROR: number of coverage TSV objects != number of samples: %d != %d\n" % (f, expected_sample_count))
+        return False
+    else:
+        return True
 
 
 def process_region(bam_paths, contig, start, stop, output_directory, token):
@@ -137,6 +136,7 @@ def process_region(bam_paths, contig, start, stop, output_directory, token):
         return
 
     paths_to_validate = list()
+    all_success = True
 
     for bam_path in bam_paths:
         local_bam_filename = os.path.basename(bam_path).split('.')[0] + "_" + region_string.replace(":","_") + ".bam"
@@ -161,6 +161,7 @@ def process_region(bam_paths, contig, start, stop, output_directory, token):
 
         if not success:
             sys.stderr.write("ERROR: failed to fetch BAM: %s %s\n" % (bam_path, region_string))
+            all_success = False
 
         get_region_coverage(
             bam_path=local_bam_path,
@@ -172,6 +173,7 @@ def process_region(bam_paths, contig, start, stop, output_directory, token):
 
         if not success:
             sys.stderr.write("ERROR: failed to get region coverage: %s %s\n" % (coverage_path, region_string))
+            all_success = False
 
         get_reads_from_bam(
             bam_path=local_bam_path,
@@ -180,26 +182,35 @@ def process_region(bam_paths, contig, start, stop, output_directory, token):
 
         if not success:
             sys.stderr.write("ERROR: failed to get reads from BAM: %s %s\n" % (local_bam_path, region_string))
+            all_success = False
 
         if os.path.exists(local_bam_path):
             os.remove(local_bam_path)
         else:
             sys.stderr.write("ERROR: local BAM does not exist: %s %s\n" % (local_bam_path, region_string))
+            all_success = False
 
+        # If possible, would want to keep the bai around to reduce re-downloading for each thread/region,
+        # assuming there will be no duplicate BAM filenames. Logistically more annoying though.
         if os.path.exists(local_bam_path + ".bai"):
             os.remove(local_bam_path + ".bai")
         else:
             sys.stderr.write("ERROR: local BAM index does not exist: %s %s\n" % (local_bam_path, region_string))
+            all_success = False
 
     # Do a sanity check to see that paths exist
     for path in paths_to_validate:
         if not os.path.exists(path):
-            sys.stderr.write("ERROR: expected file path not found: %s" % path)
+            sys.stderr.write("ERROR: expected file path not found: %s\n" % path)
+            all_success = False
 
     merge_coverages(output_directory=output_directory, expected_sample_count=len(bam_paths))
 
-    with tarfile.open(output_directory + ".tar.gz", "w:gz") as tar:
-        tar.add(output_directory, arcname=os.path.basename(output_directory))
+    if all_success:
+        with tarfile.open(output_directory + ".tar.gz", "w:gz") as tar:
+            tar.add(output_directory, arcname=os.path.basename(output_directory))
+    else:
+        sys.stderr.write("ERROR: region %s skipped because one or more samples resulted in error\n" % (region_string))
 
     shutil.rmtree(output_directory)
 
@@ -230,7 +241,7 @@ def get_remote_region_as_fasta(bam_path, contig, start, stop, output_directory, 
     success = (p2.returncode == 0)
 
     if not success:
-        sys.stderr.write("ERROR: " + " ".join([bam_path, contig, start, stop]))
+        sys.stderr.write("ERROR: failed to fetch: %s\n" % (" ".join([bam_path, contig, start, stop])))
         sys.stderr.flush()
 
     return
