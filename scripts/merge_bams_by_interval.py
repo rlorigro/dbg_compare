@@ -139,14 +139,13 @@ def process_region(bam_paths, contig, start, stop, output_directory, token):
     all_success = True
 
     for bam_path in bam_paths:
-        local_bam_filename = os.path.basename(bam_path).split('.')[0] + "_" + region_string.replace(":","_") + ".bam"
+        sample_name = os.path.basename(bam_path).split('.')[0]
+
+        local_bam_filename = sample_name + "_" + region_string.replace(":","_") + ".bam"
         local_bam_path = os.path.join(output_directory,local_bam_filename)
 
-        fasta_path = os.path.join(output_directory, os.path.basename(local_bam_path))
-        fasta_path = fasta_path.replace(".bam", ".fasta")
-
-        coverage_path = os.path.join(output_directory, os.path.basename(bam_path))
-        coverage_path = coverage_path.replace(".bam", "_coverage.tsv")
+        fasta_path = os.path.join(output_directory, sample_name + ".fasta")
+        coverage_path = os.path.join(output_directory, sample_name + "_coverage.tsv")
 
         paths_to_validate.append(fasta_path)
         paths_to_validate.append(coverage_path)
