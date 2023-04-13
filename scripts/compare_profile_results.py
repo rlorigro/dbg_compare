@@ -170,7 +170,7 @@ def main(tsv_path, n_threads, required_substring, x_max, output_directory):
 
             # Each tool downloads its regions to its own subdirectory to prevent overwriting (filenames are by region)
             output_subdirectory = os.path.join(output_directory, name)
-            output_subdirectory = os.path.join(output_subdirectory, str(n_samples))
+            output_subdirectory = os.path.join(output_subdirectory, row_name)
             if not os.path.exists(output_subdirectory):
                 os.makedirs(output_subdirectory)
 
