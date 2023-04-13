@@ -4,8 +4,15 @@ import os
 
 
 def decode_gs_uri(uri):
-    tokens = uri.split('/')
-    bucket, file_path = tokens[2], '/'.join(tokens[3:])
+    try:
+        tokens = uri.split('/')
+        bucket, file_path = tokens[2], '/'.join(tokens[3:])
+    except Exception as e:
+        sys.stderr.write("ERROR: could not parse gs URI: %s\n" % (uri))
+        sys.stderr.write(str(e))
+        sys.stderr.write('\n')
+        exit()
+
     return bucket, file_path
 
 
