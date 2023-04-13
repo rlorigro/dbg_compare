@@ -111,7 +111,7 @@ def get_resource_stats_for_tarball(tar_path):
     return total_coverage, elapsed_real_s, ram_max_mbyte, adjusted_cpu_percent
 
 
-def main(tsv_path, n_threads, required_substring, output_directory):
+def main(tsv_path, n_threads, required_substring, x_max, output_directory):
     output_directory = os.path.abspath(output_directory)
 
     if not os.path.exists(output_directory):
@@ -228,10 +228,10 @@ def main(tsv_path, n_threads, required_substring, output_directory):
     y_min, y_max = axes[1][1].get_ylim()
     axes[1][1].set_ylim([y_min, y_max*1.1])
 
-    axes[0][0].set_xlim([0,600])
-    axes[0][1].set_xlim([0,600])
-    axes[1][0].set_xlim([0,600])
-    axes[1][1].set_xlim([0,600])
+    axes[0][0].set_xlim([0,x_max])
+    axes[0][1].set_xlim([0,x_max])
+    axes[1][0].set_xlim([0,x_max])
+    axes[1][1].set_xlim([0,x_max])
 
     colors = ["green", "blue", "purple"]
     custom_lines = list()
@@ -270,6 +270,14 @@ if __name__ == "__main__":
         default=1,
         type=int,
         help="Number of threads to use"
+    )
+
+    parser.add_argument(
+        "-x",
+        required=False,
+        default=600,
+        type=int,
+        help="Maximum x value in plot"
     )
 
     parser.add_argument(
