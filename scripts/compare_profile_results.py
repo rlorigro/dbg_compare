@@ -53,7 +53,8 @@ def parse_time_as_minutes(time):
     elif len(tokens) == 2:
         minutes = float(tokens[0]) + float(tokens[1])/60
     else:
-        exit("ERROR: unparsable time string: " + time)
+        sys.stderr.write("ERROR: unparsable time string: %s\n" % time)
+        exit()
 
     return minutes
 
