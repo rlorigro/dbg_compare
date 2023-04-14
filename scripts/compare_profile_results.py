@@ -228,13 +228,20 @@ def main(tsv_path, n_threads, required_substring, axes_x_max, output_directory):
                 bins = numpy.arange(0,max,step_size)
                 histogram,_ = numpy.histogram(total_coverage, bins=bins)
 
+                # Make up a scalar for the colormap, which assumes we should have at least 2^3 samples
+                v = float(max(0,math.log2(n_samples)-2))/(math.log2(len(bams))+1)
+
+                axes[1][1].plot(bins[:-1], histogram, color=coverage_colormap(v))
+
+                # For purpose of finding peak, set 0 and 1 coverage to 0
+                histogram[0] = 0
+                histogram[1] = 0
+
+                # Find peak for text label location
                 bin_max = numpy.argmax(histogram)
                 x_max = step_size*bin_max
                 y_max = histogram[bin_max]
 
-                v = float(math.log2(n_samples))/(math.log2(len(bams))+1)
-
-                axes[1][1].plot(bins[:-1], histogram, color=coverage_colormap(v))
                 axes[1][1].text(x_max, y_max, str(n_samples), horizontalalignment='left', verticalalignment='bottom')
 
     fig.set_size_inches(12,9)
