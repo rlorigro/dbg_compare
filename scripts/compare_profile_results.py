@@ -134,7 +134,7 @@ def get_resource_stats_for_tarball(tar_path):
     return total_coverage, elapsed_real_s, ram_max_mbyte, adjusted_cpu_percent
 
 
-def main(tsv_path, n_threads, required_substring, x_max, output_directory):
+def main(tsv_path, n_threads, required_substring, axes_x_max, output_directory):
     output_directory = os.path.abspath(output_directory)
 
     if not os.path.exists(output_directory):
@@ -252,10 +252,10 @@ def main(tsv_path, n_threads, required_substring, x_max, output_directory):
     y_min, y_max = axes[1][1].get_ylim()
     axes[1][1].set_ylim([y_min, y_max*1.1])
 
-    axes[0][0].set_xlim(0,x_max)
-    axes[0][1].set_xlim(0,x_max)
-    axes[1][0].set_xlim(0,x_max)
-    axes[1][1].set_xlim(0,x_max)
+    axes[0][0].set_xlim(0,axes_x_max)
+    axes[0][1].set_xlim(0,axes_x_max)
+    axes[1][0].set_xlim(0,axes_x_max)
+    axes[1][1].set_xlim(0,axes_x_max)
 
     colors = ["green", "blue", "purple"]
     custom_lines = list()
@@ -318,4 +318,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(tsv_path=args.tsv, n_threads=args.t, required_substring=args.s, output_directory=args.o, x_max=args.x)
+    main(tsv_path=args.tsv, n_threads=args.t, required_substring=args.s, output_directory=args.o, axes_x_max=args.x)
