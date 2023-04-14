@@ -134,7 +134,7 @@ def get_resource_stats_for_tarball(tar_path):
     return total_coverage, elapsed_real_s, ram_max_mbyte, adjusted_cpu_percent
 
 
-def main(tsv_path, n_threads, required_substring, axes_x_max, output_directory):
+def main(tsv_path, n_threads, required_substring, axes_x_max, limit, output_directory):
     output_directory = os.path.abspath(output_directory)
 
     if not os.path.exists(output_directory):
@@ -180,7 +180,7 @@ def main(tsv_path, n_threads, required_substring, axes_x_max, output_directory):
             n_samples = int(df.iloc[i]["n"])
 
             try:
-                tarballs = parse_comma_separated_string(df.iloc[i]["output_tarballs_"+name])[:]
+                tarballs = parse_comma_separated_string(df.iloc[i]["output_tarballs_"+name])[:limit]
             except Exception as e:
                 print(e)
                 continue
@@ -223,13 +223,12 @@ def main(tsv_path, n_threads, required_substring, axes_x_max, output_directory):
             # Only plot coverage histogram once
             if n == 0:
                 n_bins = 400
-                max = axes_x_max
-                step_size = float(max+1)/n_bins
-                bins = numpy.arange(0,max,step_size)
+                step_size = float(axes_x_max+1)/n_bins
+                bins = numpy.arange(0,axes_x_max,step_size)
                 histogram,_ = numpy.histogram(total_coverage, bins=bins)
 
                 # Make up a scalar for the colormap, which assumes we should have at least 2^3 samples
-                v = float(max(0,math.log2(n_samples)-2))/(math.log2(len(bams))+1)
+                v = float(max(0.0,math.log2(n_samples)-2))/float(math.log2(len(bams))+1)
 
                 axes[1][1].plot(bins[:-1], histogram, color=coverage_colormap(v))
 
@@ -317,6 +316,14 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--limit",
+        required=False,
+        default=None,
+        type=int,
+        help="Only download and plot up to this many samples for each row"
+    )
+
+    parser.add_argument(
         "-o",
         required=True,
         type=str,
@@ -325,4 +332,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(tsv_path=args.tsv, n_threads=args.t, required_substring=args.s, output_directory=args.o, axes_x_max=args.x)
+    main(tsv_path=args.tsv, n_threads=args.t, required_substring=args.s, output_directory=args.o, axes_x_max=args.x, limit=args.limit)
