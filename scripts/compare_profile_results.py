@@ -297,4 +297,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(tsv_path=args.tsv, n_threads=args.t, required_substring=args.s, output_directory=args.o)
+    main(tsv_path=args.tsv, n_threads=args.t, required_substring=args.s, output_directory=args.o, x_max=args.x)
