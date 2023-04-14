@@ -61,7 +61,14 @@ def parse_time_as_minutes(time):
 
     return minutes
 
-
+'''
+elapsed_real_s,0:01.30
+elapsed_kernel_s,0.08
+ram_max_kbyte,57104
+ram_avg_kbyte,0
+cpu_percent,144%
+cpu_count,32
+'''
 def parse_log_file(file):
     cpu_percent = None
     cpu_count = None
@@ -72,11 +79,11 @@ def parse_log_file(file):
         data = line.decode("utf8").strip().split(',')
 
         if data[0] == "elapsed_real_s":
-            elapsed_real_s = parse_time_as_minutes(data[1][:-1])
+            elapsed_real_s = parse_time_as_minutes(data[1])
         if data[0] == "ram_max_kbyte":
-            ram_max_kbyte = int(data[1][:-1])
+            ram_max_kbyte = int(data[1])
         if data[0] == "cpu_percent":
-            cpu_percent = int(data[1][:-1])
+            cpu_percent = int(data[1].replace('%',''))
         if data[0] == "cpu_count":
             cpu_count = int(data[1])
 

@@ -12,7 +12,7 @@ def dry_run(output_directory):
     log_path = os.path.join(output_directory, "log.csv")
 
     with open(log_path,'w') as file:
-        file.write("elapsed_real_s,0:0\nelapsed_kernel_s,0\nram_max_kbyte,0\nram_avg_kbyte,0\ncpu_percent,0\n")
+        file.write("elapsed_real_s,0:0.0\nelapsed_kernel_s,0:0.0\nram_max_kbyte,0\nram_avg_kbyte,0\ncpu_percent,0%\n")
 
     return log_path
 
