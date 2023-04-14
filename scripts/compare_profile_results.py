@@ -44,7 +44,7 @@ def parse_coverage_file(file):
 
 
 def parse_time_as_minutes(time):
-    if time == '0':
+    if time.strip() == '0' or len(time) == 0:
         return 0
 
     tokens = time.split(":")
