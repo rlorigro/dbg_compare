@@ -177,14 +177,13 @@ def main(tsv_path, n_threads, required_substring, x_max, output_directory):
                 continue
 
             bams = parse_comma_separated_string(df.iloc[i]["bams"])
+            n_samples = int(df.iloc[i]["n"])
 
             try:
                 tarballs = parse_comma_separated_string(df.iloc[i]["output_tarballs_"+name])[:]
             except Exception as e:
                 print(e)
                 continue
-
-            n_samples = len(bams)
 
             print(n_samples, len(tarballs))
 
@@ -233,7 +232,7 @@ def main(tsv_path, n_threads, required_substring, x_max, output_directory):
                 x_max = step_size*bin_max
                 y_max = histogram[bin_max]
 
-                v = float(math.log2(n_samples)-1)/5
+                v = float(math.log2(n_samples))/(math.log2(len(bams))+1)
 
                 axes[1][1].plot(bins[:-1], histogram, color=coverage_colormap(v))
                 axes[1][1].text(x_max, y_max, str(n_samples), horizontalalignment='left', verticalalignment='bottom')
@@ -251,10 +250,10 @@ def main(tsv_path, n_threads, required_substring, x_max, output_directory):
     y_min, y_max = axes[1][1].get_ylim()
     axes[1][1].set_ylim([y_min, y_max*1.1])
 
-    axes[0][0].set_xlim([0,x_max])
-    axes[0][1].set_xlim([0,x_max])
-    axes[1][0].set_xlim([0,x_max])
-    axes[1][1].set_xlim([0,x_max])
+    axes[0][0].set_xlim(0,x_max)
+    axes[0][1].set_xlim(0,x_max)
+    axes[1][0].set_xlim(0,x_max)
+    axes[1][1].set_xlim(0,x_max)
 
     colors = ["green", "blue", "purple"]
     custom_lines = list()
@@ -265,10 +264,9 @@ def main(tsv_path, n_threads, required_substring, x_max, output_directory):
 
     axes[0][1].legend(custom_lines, tool_names, bbox_to_anchor=(1.5, 1))
 
-    pyplot.tight_layout()
+    fig.tight_layout()
 
     pyplot.savefig("resource_usage.png",dpi=200)
-
     pyplot.show()
     pyplot.close()
 
