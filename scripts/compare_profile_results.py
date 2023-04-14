@@ -180,10 +180,13 @@ def main(tsv_path, n_threads, required_substring, axes_x_max, limit, output_dire
             n_samples = int(df.iloc[i]["n"])
 
             try:
-                tarballs = parse_comma_separated_string(df.iloc[i]["output_tarballs_"+name])[:limit]
+                tarballs = parse_comma_separated_string(df.iloc[i]["output_tarballs_"+name])
             except Exception as e:
                 print(e)
                 continue
+
+            if limit is not None:
+                tarballs = tarballs[:limit]
 
             print(n_samples, len(tarballs))
 
