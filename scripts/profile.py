@@ -8,11 +8,11 @@ import re
 import os
 
 
-def dry_run_test(output_directory):
+def dry_run(output_directory):
     log_path = os.path.join(output_directory, "log.csv")
 
     with open(log_path,'w') as file:
-        file.write("test,test\n\n")
+        file.write("elapsed_real_s,0\nelapsed_kernel_s,0\nram_max_kbyte,0\nram_avg_kbyte,0\ncpu_percent,0\n")
 
     return log_path
 
@@ -21,7 +21,7 @@ def run_cuttlefish(fasta_path, k, output_directory, n_threads, timeout=60*60*24)
     log_path = os.path.join(output_directory, "log.csv")
     cuttlefish_prefix = os.path.join(output_directory, "cuttlefish")
 
-    time_args = ["/usr/bin/time","-f","elapsed_real_s,%E\\nelapsed_kernel_s,%S\\nram_max_kbyte,%M\\nram_avg_kbyte,%t\\ncpu_percent,%P\\n","-o",log_path]
+    time_args = ["/usr/bin/time","-f","elapsed_real_s,%E\\nelapsed_kernel_s,%S\\nram_max_kbyte,%M\\nram_avg_kbyte,%t\\ncpu_percent,%P","-o",log_path]
 
     # cuttlefish build -s refs1.fa -k 3 -t 4 -o cdbg -w temp/ --ref
     args = time_args + ["cuttlefish", "build", "-k", str(k), "-t", str(n_threads), "--ref", "-s", fasta_path, "-o", os.path.join(output_directory, cuttlefish_prefix)]
@@ -48,7 +48,7 @@ def run_ggcat(fasta_path, k, output_directory, n_threads, timeout=60*60*24):
     log_path = os.path.join(output_directory, "log.csv")
     ggcat_prefix = os.path.join(output_directory, "ggcat")
 
-    time_args = ["/usr/bin/time","-f","elapsed_real_s,%E\\nelapsed_kernel_s,%S\\nram_max_kbyte,%M\\nram_avg_kbyte,%t\\ncpu_percent,%P\\n","-o",log_path]
+    time_args = ["/usr/bin/time","-f","elapsed_real_s,%E\\nelapsed_kernel_s,%S\\nram_max_kbyte,%M\\nram_avg_kbyte,%t\\ncpu_percent,%P","-o",log_path]
 
     # ggcat build -e -k <k_value> -j <threads_count> <input_files> -o <output_file>
     args = time_args + ["ggcat", "build", "-e", "-k", str(k), "-j", str(n_threads), fasta_path, "-o", os.path.join(output_directory, ggcat_prefix + ".fasta")]
@@ -75,7 +75,7 @@ def run_bifrost(fasta_path, k, output_directory, n_threads, timeout=60*60*24):
     log_path = os.path.join(output_directory, "log.csv")
     bifrost_prefix = os.path.join(output_directory, "bifrost")
 
-    time_args = ["/usr/bin/time","-f","elapsed_real_s,%E\\nelapsed_kernel_s,%S\\nram_max_kbyte,%M\\nram_avg_kbyte,%t\\ncpu_percent,%P\\n","-o",log_path]
+    time_args = ["/usr/bin/time","-f","elapsed_real_s,%E\\nelapsed_kernel_s,%S\\nram_max_kbyte,%M\\nram_avg_kbyte,%t\\ncpu_percent,%P","-o",log_path]
     args = time_args + ["Bifrost", "build", "-n", "-k", str(k), "-t", str(n_threads), "-r", fasta_path, "-o", os.path.join(output_directory, bifrost_prefix)]
 
     sys.stderr.write(" ".join(args)+'\n')
@@ -119,6 +119,7 @@ def main(tar_paths, k, graph_builder, n_cores, timeout, n_samples, output_direct
         n = 0
         samples_visited = set()
         tsv_lines_per_sample = dict()
+        all_empty = True
 
         # FASTAs for this region need to be combined
         with tarfile.open(tar_path, "r:gz") as tar, open(combined_fasta_path, 'wb') as combined_fasta:
@@ -133,8 +134,11 @@ def main(tar_paths, k, graph_builder, n_cores, timeout, n_samples, output_direct
                     samples_visited.add(os.path.basename(item.name).split('.')[0])
 
                     f = tar.extractfile(item)
-                    for line in f.readlines():
+                    for l,line in enumerate(f.readlines()):
                         combined_fasta.write(line)
+
+                        if l > 0:
+                            all_empty = False
 
                 # Also untar the coverage file
                 if item.name.endswith(".tsv"):
@@ -160,23 +164,27 @@ def main(tar_paths, k, graph_builder, n_cores, timeout, n_samples, output_direct
                 out_tsv.write(tsv_lines_per_sample[s])
 
         # Add specified graph outputs to subdirectory
-        if graph_builder == "bifrost":
-            log_path = run_bifrost(combined_fasta_path, k, output_subdirectory, n_cores, timeout=timeout)
-        elif graph_builder == "ggcat":
-            log_path = run_ggcat(combined_fasta_path, k, output_subdirectory, n_cores, timeout=timeout)
-        elif graph_builder == "cuttlefish":
-            log_path = run_cuttlefish(combined_fasta_path, k, output_subdirectory, n_cores, timeout=timeout)
-        elif graph_builder == "test":
-            log_path = dry_run_test(output_directory)
+        if all_empty:
+            # Don't bother trying to run the graph tool, it may crash on empty FASTA
+            # Use dryrun function to generate 0 for all log stats
+            log_path = dry_run(output_subdirectory)
+            sys.stderr.write("WARNING: no coverage for region %s\n" % output_prefix)
         else:
-            exit("ERROR: unrecognized choice for graph builder")
+            if graph_builder == "bifrost":
+                log_path = run_bifrost(combined_fasta_path, k, output_subdirectory, n_cores, timeout=timeout)
+            elif graph_builder == "ggcat":
+                log_path = run_ggcat(combined_fasta_path, k, output_subdirectory, n_cores, timeout=timeout)
+            elif graph_builder == "cuttlefish":
+                log_path = run_cuttlefish(combined_fasta_path, k, output_subdirectory, n_cores, timeout=timeout)
+            elif graph_builder == "test":
+                log_path = dry_run(output_subdirectory)
+            else:
+                exit("ERROR: unrecognized choice for graph builder")
 
         if log_path is not None:
             # Update the log to contain the number of processors used
-            with open(log_path, 'rb+') as file:
-                # Move pointer to the last char of the file (for some reason there is extra newline)
-                file.seek(-1, os.SEEK_END)
-                file.write(("cpu_count,%d\n" % n_cores).encode())
+            with open(log_path, 'a') as file:
+                file.write("cpu_count,%d\n" % n_cores)
 
             # Tar the outputs: coverage TSV, log CSV, and bifrost gfa/index
             with tarfile.open(output_subdirectory + ".tar.gz", "w:gz") as tar:
@@ -220,7 +228,7 @@ if __name__ == "__main__":
         "--tars",
         required=True,
         type=parse_input_string,
-        help="Input tarballs (.tar.gz) containing fastas to be used for profiling"
+        help="Input tarballs (.tar.gz) containing fastas to be used for profiling. Can be a comma separated list OR a directory"
     )
 
     parser.add_argument(
