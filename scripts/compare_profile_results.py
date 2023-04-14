@@ -223,7 +223,7 @@ def main(tsv_path, n_threads, required_substring, axes_x_max, output_directory):
             # Only plot coverage histogram once
             if n == 0:
                 n_bins = 400
-                max = 1000
+                max = axes_x_max
                 step_size = float(max+1)/n_bins
                 bins = numpy.arange(0,max,step_size)
                 histogram,_ = numpy.histogram(total_coverage, bins=bins)
