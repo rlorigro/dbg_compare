@@ -237,6 +237,8 @@ def main(tsv_path, n_threads, required_substring, x_max, output_directory):
                 axes[1][1].plot(bins[:-1], histogram, color=coverage_colormap(v))
                 axes[1][1].text(x_max, y_max, str(n_samples), horizontalalignment='left', verticalalignment='bottom')
 
+    fig.set_size_inches(12,9)
+
     axes[0][0].set_xlabel("Average depth")
     axes[0][1].set_xlabel("Average depth")
     axes[1][0].set_xlabel("Average depth")
@@ -260,11 +262,9 @@ def main(tsv_path, n_threads, required_substring, x_max, output_directory):
     for i in range(len(colors)):
         custom_lines.append(Line2D([0], [0], color=colors[i], lw=4))
 
-    fig.set_size_inches(12,9)
-
     axes[0][1].legend(custom_lines, tool_names, bbox_to_anchor=(1.5, 1))
 
-    # fig.tight_layout()
+    fig.tight_layout()
 
     pyplot.savefig("resource_usage.png",dpi=200)
     pyplot.show()
