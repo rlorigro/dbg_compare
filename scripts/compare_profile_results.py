@@ -264,7 +264,7 @@ def main(tsv_path, n_threads, required_substring, x_max, output_directory):
 
     axes[0][1].legend(custom_lines, tool_names, bbox_to_anchor=(1.5, 1))
 
-    fig.tight_layout()
+    # fig.tight_layout()
 
     pyplot.savefig("resource_usage.png",dpi=200)
     pyplot.show()
