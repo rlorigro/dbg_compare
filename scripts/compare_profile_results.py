@@ -44,7 +44,7 @@ def parse_coverage_file(file):
 
 
 def parse_time_as_minutes(time):
-    if time.strip() == '0' or len(time) == 0:
+    if time.strip() == '0':
         return 0
 
     tokens = time.split(":")
@@ -102,12 +102,24 @@ def get_resource_stats_for_tarball(tar_path):
 
             if name == "coverage.tsv":
                 f = tar.extractfile(item)
-                total_coverage = parse_coverage_file(f)
+
+                try:
+                    total_coverage = parse_coverage_file(f)
+                except Exception as e:
+                    sys.stderr.write("ERROR: could not parse file: %s\n" % tar_path)
+                    sys.stderr.write(str(e))
+                    exit()
 
             if name == "log.csv":
                 f = tar.extractfile(item)
-                elapsed_real_s, ram_max_kbyte, cpu_percent, cpu_count = parse_log_file(f)
-                ram_max_mbyte = float(ram_max_kbyte)/1000
+
+                try:
+                    elapsed_real_s, ram_max_kbyte, cpu_percent, cpu_count = parse_log_file(f)
+                    ram_max_mbyte = float(ram_max_kbyte)/1000
+                except Exception as e:
+                    sys.stderr.write("ERROR: could not parse file: %s\n" % tar_path)
+                    sys.stderr.write(str(e))
+                    exit()
 
     # Normalize CPU percent so it shows percent of total CPUs, instead of e.g. 233%
     adjusted_cpu_percent = cpu_percent / cpu_count
