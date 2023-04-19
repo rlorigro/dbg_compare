@@ -32,6 +32,10 @@ def main(fasta_path, output_path, no_sequence=False):
     id = None
     sequence = None
 
+    if not os.path.exists(fasta_path):
+        sys.stderr.write("WARNING: fasta file not found, terminating early: %s" % fasta_path)
+        return
+
     with open(fasta_path, 'r') as file:
         for l,line in enumerate(file):
             if len(line) <= 1:
