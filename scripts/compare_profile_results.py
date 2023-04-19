@@ -6,6 +6,7 @@ import tarfile
 
 import numpy
 import pandas
+import json
 import math
 import sys
 import re
@@ -134,13 +135,38 @@ def get_resource_stats_for_tarball(tar_path):
     return total_coverage, elapsed_real_s, ram_max_mbyte, adjusted_cpu_percent
 
 
-def main(tsv_path, n_threads, required_substring, axes_x_max, limit, output_directory):
+def load_json(json_path):
+    if not json_path.endswith(".json"):
+        exit("ERROR: config file not in json format: %s" % json_path)
+
+    config = None
+    try:
+        with open(json_path, 'r') as file:
+            config = json.load(file)
+    except Exception as e:
+        sys.stderr.write(str(e))
+        sys.stderr.write('\n')
+        exit("ERROR: failed parsing json file: %s" % json_path)
+
+    return config
+
+
+def parse_config(json_path):
+    config = load_json(json_path)
+
+    print(config)
+
+    return config
+
+
+def main(tsv_path, n_threads, required_substring, axes_x_max, limit, config_path, output_directory):
+    config = parse_config(config_path)
+
     output_directory = os.path.abspath(output_directory)
 
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
 
-    tool_names = ["bifrost", "ggcat", "cuttlefish"]
     fig,axes = pyplot.subplots(nrows=2,ncols=2)
 
     df = pandas.read_table(tsv_path, sep='\t', header=0)
@@ -149,18 +175,14 @@ def main(tsv_path, n_threads, required_substring, axes_x_max, limit, output_dire
 
     print(n_rows)
 
-    colormaps = {
-        "bifrost":pyplot.get_cmap("Greens"),
-        "ggcat":truncate_colormap(pyplot.get_cmap("Blues"), maxval=0.8),
-        "cuttlefish":pyplot.get_cmap("Purples")
-    }
-
     coverage_colormap = pyplot.get_cmap("gist_heat")
     max_coverage = 0
 
-    for n,name in enumerate(tool_names):
+    for n,item in enumerate(config):
+        name = item["label"]
+
         print("---- %s ----" % name)
-        colormap = colormaps[name]
+        # colormap = colormaps[name]
 
         for i in range(n_rows):
             total_coverage = list()
@@ -180,7 +202,7 @@ def main(tsv_path, n_threads, required_substring, axes_x_max, limit, output_dire
             n_samples = int(df.iloc[i]["n"])
 
             try:
-                tarballs = parse_comma_separated_string(df.iloc[i]["output_tarballs_"+name])
+                tarballs = parse_comma_separated_string(df.iloc[i][item["column_name"]])
             except Exception as e:
                 print(e)
                 continue
@@ -191,7 +213,7 @@ def main(tsv_path, n_threads, required_substring, axes_x_max, limit, output_dire
             print(n_samples, len(tarballs))
 
             # Just use the same color for all dots within a dbg tool
-            color = colormap(1.0)
+            color = item["color"]
 
             # Each tool downloads its regions to its own subdirectory to prevent overwriting (filenames are by region)
             output_subdirectory = os.path.join(output_directory, name)
@@ -266,18 +288,41 @@ def main(tsv_path, n_threads, required_substring, axes_x_max, limit, output_dire
     axes[1][0].set_xlim(0,axes_x_max)
     axes[1][1].set_xlim(0,axes_x_max)
 
-    colors = ["green", "blue", "purple"]
+    colors = [x["color"] for x in config]
     custom_lines = list()
     for i in range(len(colors)):
         custom_lines.append(Line2D([0], [0], color=colors[i], lw=4))
 
-    axes[0][1].legend(custom_lines, tool_names, bbox_to_anchor=(1.5, 1))
+    axes[0][1].legend(custom_lines, [x["label"] for x in config], bbox_to_anchor=(1.5, 1))
 
     fig.tight_layout()
 
     pyplot.savefig("resource_usage.png",dpi=200)
     pyplot.show()
     pyplot.close()
+
+
+def generate_template():
+    data = [
+        {
+            "label":"ggcat",
+            "column_name":"output_tarballs_ggcat",
+            "color":[float(35)/255.0,float(98)/255.0,float(103)/255.0]
+        },
+        {
+            "label":"cuttlefish",
+            "column_name":"output_tarballs_cuttlefish",
+            "color":[float(54)/255.0,float(51)/255.0,float(119)/255.0]
+        },
+        {
+            "label":"bifrost",
+            "column_name":"output_tarballs_bifrost",
+            "color":[float(92)/255.0,float(150)/255.0,float(50)/255.0]
+        }
+    ]
+
+    with open("template_config.json", 'w') as file:
+        json.dump(data, file, indent=2)
 
 
 def parse_comma_separated_string(s):
@@ -333,6 +378,23 @@ if __name__ == "__main__":
         help="Output directory"
     )
 
-    args = parser.parse_args()
+    parser.add_argument(
+        "-c",
+        required=True,
+        type=str,
+        help="Config file (use --template to generate a template config)"
+    )
 
-    main(tsv_path=args.tsv, n_threads=args.t, required_substring=args.s, output_directory=args.o, axes_x_max=args.x, limit=args.limit)
+    if "--template" in sys.argv:
+        generate_template()
+    else:
+        args = parser.parse_args()
+        main(
+            tsv_path=args.tsv,
+            n_threads=args.t,
+            required_substring=args.s,
+            axes_x_max=args.x,
+            limit=args.limit,
+            config_path=args.c,
+            output_directory=args.o
+        )
