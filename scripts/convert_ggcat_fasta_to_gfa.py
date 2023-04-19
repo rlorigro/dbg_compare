@@ -53,7 +53,9 @@ def main(fasta_path, output_path, no_sequence=False):
             else:
                 sequence += line.strip()
 
-    nodes[id] = sequence
+    # Final line
+    if sequence is not None and id is not None:
+        nodes[id] = sequence
 
     with open(output_path, 'w') as file:
         file.write("H\tVN:Z:1.0\n")
