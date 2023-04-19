@@ -1,6 +1,7 @@
 from module.Edge import Edge
 from collections import defaultdict
 import argparse
+import os
 
 
 """
@@ -11,8 +12,16 @@ import argparse
 >4 LN:i:35 L:+:35516:+ L:-:16:- L:-:58288:-
 >5 LN:i:33 L:+:15:- L:-:1:-
 """
-def main(fasta_path, no_sequence=False):
-    output_path = '.'.join(fasta_path.split('.')[:-1]+["gfa"])
+def main(fasta_path, output_path, no_sequence=False):
+    output_directory = os.path.dirname(output_path)
+
+    if not len(output_directory) == 0:
+        if not os.path.exists(output_directory):
+            os.makedirs(output_directory)
+
+    if not output_path.endswith(".gfa"):
+        exit("ERROR: output path does not have GFA suffix: " + output_path)
+
     print(fasta_path)
     print(output_path)
 
@@ -25,14 +34,15 @@ def main(fasta_path, no_sequence=False):
     with open(fasta_path, 'r') as file:
         for l,line in enumerate(file):
             if line[0] == '>':
+                if l > 0:
+                    nodes[id] = sequence
+
                 id, line_edges = Edge.parse_bcalm_string(line[1:])
 
                 for e in line_edges:
                     e.canonicalize()
                     edges.add(e.to_gfa_line())
 
-                if l > 0:
-                    nodes[id] = sequence
                 sequence = ""
 
             else:
@@ -80,6 +90,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "-o",
+        required=True,
+        type=str,
+        help="Output path, any non-existent directories will be created"
+    )
+
+    parser.add_argument(
         "--no_sequence",
         required=True,
         type=str_as_bool,
@@ -88,4 +105,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(fasta_path=args.i, no_sequence=args.no_sequence)
+    main(fasta_path=args.i, output_path=args.o, no_sequence=args.no_sequence)
