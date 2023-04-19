@@ -1,6 +1,7 @@
 from module.Edge import Edge
 from collections import defaultdict
 import argparse
+import sys
 import os
 
 
@@ -33,6 +34,10 @@ def main(fasta_path, output_path, no_sequence=False):
 
     with open(fasta_path, 'r') as file:
         for l,line in enumerate(file):
+            if len(line) <= 1:
+                sys.stderr.write("WARNING: empty line detected at l=%d in file: %s" % (l, fasta_path))
+                continue
+
             if line[0] == '>':
                 if l > 0:
                     nodes[id] = sequence
@@ -86,7 +91,7 @@ if __name__ == "__main__":
         "-i",
         required=True,
         type=str,
-        help="Input fasta containing ggcat formated sequences, with BCALM Link strings as annotation"
+        help="Input fasta containing ggcat formatted sequences, with BCALM Link strings as annotation"
     )
 
     parser.add_argument(
