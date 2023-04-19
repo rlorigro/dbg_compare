@@ -50,8 +50,8 @@ def run_ggcat(fasta_path, k, output_directory, n_threads, timeout=60*60*24):
 
     time_args = ["/usr/bin/time","-f","elapsed_real_s,%E\\nelapsed_kernel_s,%S\\nram_max_kbyte,%M\\nram_avg_kbyte,%t\\ncpu_percent,%P","-o",log_path]
 
-    # ggcat build -e -k <k_value> -j <threads_count> <input_files> -o <output_file>
-    args = time_args + ["ggcat", "build", "-e", "-k", str(k), "-j", str(n_threads), fasta_path, "-o", os.path.join(output_directory, ggcat_prefix + ".fasta")]
+    # ggcat build -e --min-multiplicity 1 -k <k_value> -j <threads_count> <input_files> -o <output_file>
+    args = time_args + ["ggcat", "build", "-e", "--min-multiplicity", "1", "-k", str(k), "-j", str(n_threads), fasta_path, "-o", os.path.join(output_directory, ggcat_prefix + ".fasta")]
 
     sys.stderr.write(" ".join(args)+'\n')
 
